@@ -1,17 +1,24 @@
 from src.data import load_puzzles;
-from src.embeddings import WordVectors;
+from src.embeddings import GloVe, Numberbatch, get_embedding;
 from src.scorer import plain_similarity;
+from src.solvers import GreedyPlayer, play;
 
-import numpy as np
 
 
 
 def main():
-    wv = WordVectors.load_glove()
-    words = ['SNOW', 'LEVEL', 'SHIFT', 'KAYAK', 'HEAT', 'TAB', 'BUCKS', 'RETURN', 'JAZZ', 'HAIL', 'OPTION', 'RAIN', 'SLEET', 'RACECAR', 'MOM', 'NETS']
-    scores = plain_similarity(words, wv)
-    print(scores[:10])
-    print(len(scores))
+    embedding = get_embedding("numberbatch")
+    puzzle = ['SNOW', 'CARRY ON', 'SHIFT', 'CONTINUE', 'HEAT', 'TAB', 'BUCKS', 'RETURN', 'JAZZ', 'HAIL', 'OPTION', 'RAIN', 'SLEET', 'PROCEED', 'RESUME', 'NETS']
+    scores = plain_similarity(puzzle, embedding)
+    truth = [
+        frozenset({0,9,11,12}), #wet weather
+        frozenset({1,3,13,14}), #keep going
+        frozenset({2,5,7,10}), #keyboard keys
+        frozenset({4,6,8,15}) #nba teams
+    ]
+    result = play(scores, truth)
+    print(result)
+    
 
 
 main()

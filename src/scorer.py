@@ -3,10 +3,10 @@ import itertools
 import numpy as np
 
 #16 words per puzzle, four groups a puzzle is 1820 combinations
-combinations = list(itertools.combinations(range(16), 4))
+COMBINATIONS = list(itertools.combinations(range(16), 4))
 
 # 4 words per group, comapre combinations of two words in a group (cosine similarity)
-pairs = list(itertools.combinations(range(4), 2))
+PAIRS = list(itertools.combinations(range(4), 2))
 
 
 def plain_similarity(words, wv):
@@ -25,9 +25,9 @@ def plain_similarity(words, wv):
 
     #gets the average of the similarity b/w all combinations of pair of words in the group
     scores = []
-    for group in combinations:
+    for group in COMBINATIONS:
         pair_sims = []
-        for i, j in pairs:
+        for i, j in PAIRS:
             pair_sims.append(S[group[i], group[j]])
         scores.append(np.mean(pair_sims))
     
