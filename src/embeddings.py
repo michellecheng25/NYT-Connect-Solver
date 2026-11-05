@@ -18,11 +18,11 @@ class WordVectors:
         """
 
         self.total += 1 
-        pieces = word.lower().replace("-", "").split()
+        pieces = word.lower().replace("-", " ").split()
         vs = [self.lookup[p] for p in pieces if p in self.lookup]
         if not vs:
             self.missing += 1
-            return np.zeros(self.dim)
+            return np.zeros(self.dimensions) #This fixes the crash when a word is missing from GloVe.
         return np.mean(vs, axis=0)
     
     def load_glove():

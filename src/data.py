@@ -17,8 +17,8 @@ def load_puzzles():
 
     #group rows together into a game by game ID
     for gid, g in df.groupby("Game ID"):
-        #set idx from 0 - 15 for demo puproses
-        g = g.reset_index(drop=True)
+        #puts the words in their original board order and assigns positions 0–15
+        g = g.sort_values(["Starting Row", "Starting Column"]).reset_index(drop=True)
 
         #skip malformed puzzles (# words != 16, # of unique groups != 4)
         if len(g) != 16 or g["Group Name"].nunique() != 4:
@@ -26,6 +26,14 @@ def load_puzzles():
 
         # clean words
         words = [str(w).strip() for w in g["Word"]]
+
+        # Skip puzzles with empty words, repeated words, or uneven groups.
+        if (
+            any(not word for word in words)
+            or len({word.casefold() for word in words}) != 16
+            or not g.groupby("Group Name").size().eq(4).all()
+        ):
+            continue
 
         group_names, groups, levels = [], [], []
         #for each group in apuzzle, get the words and level

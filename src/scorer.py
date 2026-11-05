@@ -15,6 +15,10 @@ def plain_similarity(words, wv):
     representing scores of every combination of 4 groups that can be made from 16 words.
     """
 
+    #error if an incomplete puzzle reaches the scorer
+    if len(words) != 16:
+        raise ValueError("Expected exactly 16 words.")
+
     V = np.array([wv.vec(w) for w in words])
 
     #normalize all word vectors
