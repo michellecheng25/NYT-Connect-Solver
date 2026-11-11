@@ -1,6 +1,73 @@
 import numpy as np
 from src.scorer import COMBINATIONS
 
+# each candidate group as a 16-bit mask of its board positions, e.g. {0,1,2,3} -> 0b1111
+MASKS = np.array([sum(1 << i for i in g) for g in COMBINATIONS])
+# lowest board position in each group (combinations are sorted, so it's the first one)
+LOWEST = np.array([g[0] for g in COMBINATIONS])
+# mask -> group index, to find the last group from the 4 words that are left
+MASK_TO_GROUP = np.full(1 << 16, -1)
+MASK_TO_GROUP[MASKS] = np.arange(len(COMBINATIONS))
+FULL = (1 << 16) - 1
+
+_partitions = None
+
+
+def _lowest_unused(used):
+    """board position of the lowest word not in the used mask"""
+    return ((~used) & (used + 1)).bit_length() - 1
+
+
+def all_partitions():
+    """
+    every way to split 16 words into 4 groups of 4: (2,627,625, 4) array of group indices.
+    to avoid counting the same split twice, each next group must contain the lowest
+    word not used yet: 455 * 165 * 35 * 1 = 2,627,625.
+    built once (takes a couple of seconds), then reused.
+    """
+    global _partitions
+    if _partitions is not None:
+        return _partitions
+
+    rows = []
+    for a in np.flatnonzero(LOWEST == 0):
+        used_a = int(MASKS[a])
+        for b in np.flatnonzero((LOWEST == _lowest_unused(used_a)) & (MASKS & used_a == 0)):
+            used_b = used_a | int(MASKS[b])
+            c = np.flatnonzero((LOWEST == _lowest_unused(used_b)) & (MASKS & used_b == 0))
+            d = MASK_TO_GROUP[FULL ^ used_b ^ MASKS[c]]
+            rows.append(np.stack([np.full(len(c), a), np.full(len(c), b), c, d], axis=1))
+
+    _partitions = np.concatenate(rows).astype(np.int16)
+    return _partitions
+
+
+def whole_board(scores):
+    """
+    split all 16 words at once: the 4 non-overlapping groups with the highest total score.
+    returns a list of 4 frozensets of board positions.
+    """
+    P = all_partitions()
+    #float64 so near-equal boards aren't decided by float32 rounding
+    scores = np.asarray(scores, dtype=np.float64)
+    best = P[np.argmax(scores[P].sum(axis=1))]
+    return [frozenset(COMBINATIONS[k]) for k in best]
+
+
+def greedy_board(scores):
+    """
+    split all 16 words one group at a time: take the best group, remove its words, repeat.
+    returns a list of 4 frozensets of board positions.
+    """
+    picked, used = [], 0
+    for k in np.argsort(-scores):
+        if MASKS[k] & used == 0:
+            picked.append(frozenset(COMBINATIONS[k]))
+            used |= int(MASKS[k])
+            if len(picked) == 4:
+                break
+    return picked
+
 class GreedyPlayer:
     """
     A greedy player you can step through one turn at a time.
