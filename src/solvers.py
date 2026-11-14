@@ -9,6 +9,10 @@ LOWEST = np.array([g[0] for g in COMBINATIONS])
 MASK_TO_GROUP = np.full(1 << 16, -1)
 MASK_TO_GROUP[MASKS] = np.arange(len(COMBINATIONS))
 FULL = (1 << 16) - 1
+# group (sorted tuple of positions) -> index into COMBINATIONS
+GROUP_INDEX = {g: k for k, g in enumerate(COMBINATIONS)}
+# number of 1 bits in every 16-bit mask, so POPCOUNT[a & b] = words two groups share
+POPCOUNT = np.array([bin(m).count("1") for m in range(1 << 16)], dtype=np.int8)
 
 _partitions = None
 
@@ -131,3 +135,73 @@ def play(scores, truth, use_one_away=True):
 
     return {"won": len(player.solved) == 4, "groups_found": len(player.solved),
             "mistakes": player.mistakes, "history": player.history}
+
+
+class BoardPlayer:
+    """
+    Keeps a probability for every full board (all 2,627,625 ways to split the 16 words).
+        P(board) is proportional to exp(total score / temperature)
+    Each turn it guesses the group with the highest probability, adding up over every
+    board that contains it (the "most confident" group).
+
+    use_feedback=True: after each guess, throw out the boards that disagree with the feedback
+        correct   keep boards that contain the guess
+        one away  keep boards with a group sharing exactly 3 words with the guess
+        wrong     keep boards where no group shares 3 or more words with the guess
+    use_feedback=False: probabilities are fixed at the start. It still can't reuse words
+        from groups it already got right (the game removes them), and never repeats a guess.
+    """
+
+    def __init__(self, scores, temperature=0.05, use_feedback=True):
+        self.boards = all_partitions()
+        self.logp = np.asarray(scores, dtype=np.float64)[self.boards].sum(axis=1) / temperature
+        self.use_feedback = use_feedback
+        self.marginal = self._marginals()
+        self.solved = []         # groups we got right
+        self.used = 0            # mask of words in solved groups
+        self.guessed = set()     # group indices already tried
+        self.mistakes = 0
+        self.history = []        # (guess, feedback) for each turn
+
+    def _marginals(self):
+        """probability of each of the 1,820 groups = sum over the boards that contain it"""
+        p = np.exp(self.logp - self.logp.max())
+        p /= p.sum()
+        return np.bincount(self.boards.ravel(), weights=np.repeat(p, 4), minlength=len(COMBINATIONS))
+
+    def done(self):
+        return len(self.solved) == 4 or self.mistakes >= 4
+
+    def next_guess(self):
+        for k in np.argsort(-self.marginal):
+            if k not in self.guessed and MASKS[k] & self.used == 0:
+                return frozenset(COMBINATIONS[k])
+
+    def give_feedback(self, guess, feedback):
+        self.history.append((guess, feedback))
+        k = GROUP_INDEX[tuple(sorted(guess))]
+        self.guessed.add(k)
+        if feedback == "correct":
+            self.solved.append(guess)
+            self.used |= int(MASKS[k])
+        else:
+            self.mistakes += 1
+
+        if self.use_feedback:
+            # most words the guess shares with any one group, on each board
+            overlap = POPCOUNT[MASKS[k] & MASKS][self.boards].max(axis=1)
+            keep = {"correct": overlap == 4, "one_away": overlap == 3, "wrong": overlap < 3}[feedback]
+            self.boards, self.logp = self.boards[keep], self.logp[keep]
+            self.marginal = self._marginals()
+
+
+
+def play_boards(scores, truth, temperature=0.05, use_feedback=True):
+    player = BoardPlayer(scores, temperature, use_feedback)
+    while not player.done():
+        guess = player.next_guess()
+        player.give_feedback(guess, get_feedback(guess, truth))
+
+    return {"won": len(player.solved) == 4, "groups_found": len(player.solved),
+            "mistakes": player.mistakes, "history": player.history,
+            "boards_left": len(player.boards)}
