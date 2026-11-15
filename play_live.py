@@ -13,7 +13,7 @@ import argparse
 import numpy as np
 from src.embeddings import get_embedding
 from src.scorer import plain_similarity, COMBINATIONS
-from src.solvers import BoardPlayer
+from src.solvers import BoardPlayer, GROUP_INDEX
 
 FEEDBACK = {"c": "correct", "o": "one_away", "w": "wrong"}
 
@@ -27,17 +27,21 @@ def ask_words():
 
 
 def ask_guess(words, options, player):
-    """which group was entered on the NYT site: 1-3 for a suggestion, or 4 words"""
+    """which group was entered on the NYT site: a suggestion number, or 4 words"""
+    n = len(options)
     while True:
-        ans = input("Which did you guess? [1] (1-3, or type 4 words): ").strip()
-        if ans in ("", "1", "2", "3"):
+        ans = input(f"Which did you guess? [1] (1-{n}, or type 4 words): ").strip()
+        if ans == "" or (ans.isdigit() and 1 <= int(ans) <= n):
             return options[int(ans or 1) - 1][0]
         picked = [w.strip().upper() for w in ans.split(",")]
-        if len(set(picked)) == 4 and all(w in words for w in picked):
+        if len(picked) == 4 and len(set(picked)) == 4 and all(w in words for w in picked):
             guess = frozenset(words.index(w) for w in picked)
+            if GROUP_INDEX[tuple(sorted(guess))] in player.guessed:
+                print("  you already guessed that one; NYT doesn't count repeats, so enter a different guess")
+                continue
             if not any(guess & g for g in player.solved):
                 return guess
-        print("  need 1-3, or 4 different words from the board (not already solved), separated by commas")
+        print(f"  need 1-{n}, or 4 different words from the board (not already solved), separated by commas")
 
 
 def ask_feedback():

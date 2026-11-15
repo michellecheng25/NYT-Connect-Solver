@@ -57,7 +57,7 @@ class Numberbatch(Embedding):
             if key in self.kv:
                 return np.asarray(self.kv[key])
         # otherwise average the pieces
-        return self._average([p for p in parts])
+        return self._average(parts)
 
 
 
