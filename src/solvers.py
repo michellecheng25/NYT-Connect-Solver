@@ -172,10 +172,18 @@ class BoardPlayer:
     def done(self):
         return len(self.solved) == 4 or self.mistakes >= 4
 
-    def next_guess(self):
+    def top_guesses(self, n=1):
+        """the n most confident groups still allowed, as (group, probability) pairs"""
+        out = []
         for k in np.argsort(-self.marginal):
             if k not in self.guessed and MASKS[k] & self.used == 0:
-                return frozenset(COMBINATIONS[k])
+                out.append((frozenset(COMBINATIONS[k]), self.marginal[k]))
+                if len(out) == n:
+                    break
+        return out
+
+    def next_guess(self):
+        return self.top_guesses(1)[0][0]
 
     def give_feedback(self, guess, feedback):
         self.history.append((guess, feedback))

@@ -35,11 +35,18 @@ class GloVe(Embedding):
 
 
 class Numberbatch(Embedding):
-    def __init__(self, path="data/numberbatch-en-19.08.txt.gz"):
+    def __init__(self, path="data/numberbatch-en-19.08.txt.gz", cache="data/numberbatch.kv"):
         super().__init__()
+        import os
         from gensim.models import KeyedVectors
 
-        self.kv = KeyedVectors.load_word2vec_format(path, binary=False)
+        # reading the .txt.gz takes about a minute, so the first load saves a binary copy;
+        # after that, loading the copy takes under a second
+        if os.path.exists(cache):
+            self.kv = KeyedVectors.load(cache, mmap="r")
+        else:
+            self.kv = KeyedVectors.load_word2vec_format(path, binary=False)
+            self.kv.save(cache)
         self.dim = self.kv.vector_size
 
     def vec(self, word):
