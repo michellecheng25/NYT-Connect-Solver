@@ -17,7 +17,7 @@ import numpy as np
 from src.data import load_puzzles, date_split
 from src.embeddings import get_embedding
 from src.scorer import plain_similarity
-from src.solvers import play_boards, play
+from src.solvers import play_boards, play, board_totals
 from evaluate_h2 import bootstrap_ci, paired_test, fmt
 
 COLORS = ["yellow", "green", "blue", "purple"]
@@ -26,11 +26,11 @@ PLAYERS = [("greedy", "greedy (ref)"), ("static", "no feedback"), ("feedback", "
 TEMPERATURES = [0.01, 0.02, 0.05, 0.1, 0.2]
 
 
-def run(scores, truth, player, temperature):
+def run(scores, truth, player, temperature, totals=None):
     if player == "greedy":
         r = play(scores, truth)
     else:
-        r = play_boards(scores, truth, temperature, use_feedback=(player == "feedback"))
+        r = play_boards(scores, truth, temperature, use_feedback=(player == "feedback"), totals=totals)
     r["won"] = int(r["won"])
     r["found"] = [any(g == guess and fb == "correct" for guess, fb in r["history"]) for g in truth]
     return r
@@ -38,14 +38,17 @@ def run(scores, truth, player, temperature):
 
 def sweep(puzzles, wv):
     """groups found on the train puzzles for each temperature"""
-    scores = [plain_similarity(p["words"], wv) for p in puzzles]
+    rs = {(t, pl): [] for t in TEMPERATURES for pl in ["static", "feedback"]}
+    for p in puzzles:
+        scores = plain_similarity(p["words"], wv)
+        totals = board_totals(scores)  # the slow part; it doesn't depend on the temperature
+        for t, pl in rs:
+            rs[(t, pl)].append(run(scores, p["groups"], pl, t, totals))
     print(f"temperature sweep on {len(puzzles)} train puzzles (mean groups found / won)")
     for t in TEMPERATURES:
-        line = f"  T={t:<5}"
-        for player in ["static", "feedback"]:
-            rs = [run(s, p["groups"], player, t) for s, p in zip(scores, puzzles)]
-            line += f"  {player} {np.mean([r['groups_found'] for r in rs]):.3f} / {np.mean([r['won'] for r in rs]):.3f}"
-        print(line)
+        print(f"  T={t:<5}" + "".join(
+            f"  {pl} {np.mean([r['groups_found'] for r in rs[t, pl]]):.3f} / {np.mean([r['won'] for r in rs[t, pl]]):.3f}"
+            for pl in ["static", "feedback"]))
 
 
 def main():
@@ -69,8 +72,9 @@ def main():
     results = {s: [] for s, _ in PLAYERS}
     for p in puzzles:
         scores = plain_similarity(p["words"], wv)
+        totals = board_totals(scores)  # shared by the static and feedback players
         for s, _ in PLAYERS:
-            results[s].append(run(scores, p["groups"], s, args.temperature))
+            results[s].append(run(scores, p["groups"], s, args.temperature, totals))
 
     n = len(puzzles)
     arr = {s: {m: np.array([r[m] for r in rs], dtype=float) for m in METRICS} for s, rs in results.items()}
@@ -103,9 +107,10 @@ def main():
         h = [fb for r in results[s] for _, fb in r["history"]]
         first = np.mean([r["history"][0][1] == "correct" for r in results[s]]) * 100
         won = arr[s]["won"].astype(bool)
+        in_won = f"{arr[s]['mistakes'][won].mean():.2f}" if won.any() else "n/a (no wins)"
         print(f"  {name:<13} guesses/game {len(h) / n:.2f}  correct {h.count('correct') / len(h) * 100:4.1f}%  "
               f"one away {h.count('one_away') / len(h) * 100:4.1f}%  wrong {h.count('wrong') / len(h) * 100:4.1f}%  |  "
-              f"1st guess right {first:.1f}%  |  mistakes in won games {arr[s]['mistakes'][won].mean():.2f}")
+              f"1st guess right {first:.1f}%  |  mistakes in won games {in_won}")
     left = np.array([r["boards_left"] for r in results["feedback"]])
     print(f"  feedback player, boards still possible when the game ends: median {np.median(left):,.0f}, "
           f"exactly 1 in {(left == 1).mean() * 100:.1f}% of games")

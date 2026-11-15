@@ -34,6 +34,10 @@ def load_puzzles():
             groups.append(frozenset(row.index.tolist()))
             levels.append(int(row["Group Level"].iloc[0]))
 
+        #skip puzzles where a group doesn't have exactly 4 words (e.g. a 5/4/4/3 split)
+        if any(len(group) != 4 for group in groups):
+            continue
+
         puzzles.append({
             "id": int(gid),
             "date": str(g["Puzzle Date"].iloc[0]),

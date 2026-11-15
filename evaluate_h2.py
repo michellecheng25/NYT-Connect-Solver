@@ -17,12 +17,11 @@ from scipy.stats import wilcoxon
 from src.data import load_puzzles, date_split
 from src.embeddings import get_embedding
 from src.scorer import plain_similarity, COMBINATIONS
-from src.solvers import whole_board, greedy_board, all_partitions
+from src.solvers import whole_board, greedy_board, all_partitions, board_totals, GROUP_INDEX
 
 COLORS = ["yellow", "green", "blue", "purple"]
 METRICS = ["groups_found", "solved", "words_correct"]
 SOLVERS = [("random", "random board"), ("greedy", "greedy"), ("whole", "whole-board")]
-GROUP_INDEX = {g: k for k, g in enumerate(COMBINATIONS)}
 B = 10000  # bootstrap resamples
 rng = np.random.default_rng(0)
 
@@ -47,12 +46,15 @@ def random_board():
     return [frozenset(COMBINATIONS[k]) for k in P[rng.integers(len(P))]]
 
 
-def true_board_rank(scores, truth):
-    """position of the real answer among all 2,627,625 boards, by total score (1 = best)"""
+def true_board_rank(totals, scores, truth):
+    """
+    position of the real answer among all 2,627,625 boards, by total score (1 = best).
+    counts every board scoring at least as high, so a tie with a wrong board gives
+    rank 2, not rank 1 (whole-board's argmax may pick the tied wrong board).
+    """
     scores = np.asarray(scores, dtype=np.float64)
-    totals = scores[all_partitions()].sum(axis=1)
     true_total = sum(scores[GROUP_INDEX[tuple(sorted(g))]] for g in truth)
-    return 1 + int((totals > true_total + 1e-9).sum())
+    return int((totals >= true_total - 1e-9).sum())
 
 
 def bootstrap_ci(x):
@@ -93,10 +95,11 @@ def main():
     ranks = []
     for p in puzzles:
         scores = plain_similarity(p["words"], wv)
+        totals = board_totals(scores)  # shared by whole_board and true_board_rank
         results["random"].append(grade(random_board(), p["groups"]))
         results["greedy"].append(grade(greedy_board(scores), p["groups"]))
-        results["whole"].append(grade(whole_board(scores), p["groups"]))
-        ranks.append(true_board_rank(scores, p["groups"]))
+        results["whole"].append(grade(whole_board(scores, totals), p["groups"]))
+        ranks.append(true_board_rank(totals, scores, p["groups"]))
 
     n = len(puzzles)
     arr = {s: {m: np.array([r[m] for r in rs], dtype=float) for m in METRICS} for s, rs in results.items()}

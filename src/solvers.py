@@ -46,15 +46,19 @@ def all_partitions():
     return _partitions
 
 
-def whole_board(scores):
+def board_totals(scores):
+    """total score of every full board, float64 so ties aren't decided by float32 rounding"""
+    return np.asarray(scores, dtype=np.float64)[all_partitions()].sum(axis=1)
+
+
+def whole_board(scores, totals=None):
     """
     split all 16 words at once: the 4 non-overlapping groups with the highest total score.
     returns a list of 4 frozensets of board positions.
     """
-    P = all_partitions()
-    #float64 so near-equal boards aren't decided by float32 rounding
-    scores = np.asarray(scores, dtype=np.float64)
-    best = P[np.argmax(scores[P].sum(axis=1))]
+    if totals is None:
+        totals = board_totals(scores)
+    best = all_partitions()[np.argmax(totals)]
     return [frozenset(COMBINATIONS[k]) for k in best]
 
 
@@ -152,9 +156,12 @@ class BoardPlayer:
         from groups it already got right (the game removes them), and never repeats a guess.
     """
 
-    def __init__(self, scores, temperature=0.05, use_feedback=True):
+    def __init__(self, scores, temperature=0.05, use_feedback=True, totals=None):
         self.boards = all_partitions()
-        self.logp = np.asarray(scores, dtype=np.float64)[self.boards].sum(axis=1) / temperature
+        # totals can be passed in when the caller already computed it (it's the slow part)
+        if totals is None:
+            totals = board_totals(scores)
+        self.logp = totals / temperature
         self.use_feedback = use_feedback
         self.marginal = self._marginals()
         self.solved = []         # groups we got right
@@ -165,6 +172,9 @@ class BoardPlayer:
 
     def _marginals(self):
         """probability of each of the 1,820 groups = sum over the boards that contain it"""
+        # every board ruled out: an answer must have been reported wrong (live play typo)
+        if len(self.boards) == 0:
+            return np.zeros(len(COMBINATIONS))
         p = np.exp(self.logp - self.logp.max())
         p /= p.sum()
         return np.bincount(self.boards.ravel(), weights=np.repeat(p, 4), minlength=len(COMBINATIONS))
@@ -204,8 +214,8 @@ class BoardPlayer:
 
 
 
-def play_boards(scores, truth, temperature=0.05, use_feedback=True):
-    player = BoardPlayer(scores, temperature, use_feedback)
+def play_boards(scores, truth, temperature=0.05, use_feedback=True, totals=None):
+    player = BoardPlayer(scores, temperature, use_feedback, totals)
     while not player.done():
         guess = player.next_guess()
         player.give_feedback(guess, get_feedback(guess, truth))
