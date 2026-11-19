@@ -6,3 +6,6 @@ data/
 .DS_Store
 results/*
 !results/.gitkeep
+TODO.md
+NYT Connections Project Proposal.pdf
+experiments
