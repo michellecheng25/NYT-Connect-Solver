@@ -47,7 +47,7 @@ def all_partitions():
 
 
 def board_totals(scores):
-    """total score of every full board, float64 so ties aren't decided by float32 rounding"""
+    """total score of every full board"""
     return np.asarray(scores, dtype=np.float64)[all_partitions()].sum(axis=1)
 
 
@@ -144,16 +144,14 @@ def play(scores, truth, use_one_away=True):
 class BoardPlayer:
     """
     Keeps a probability for every full board (all 2,627,625 ways to split the 16 words).
-        P(board) is proportional to exp(total score / temperature)
-    Each turn it guesses the group with the highest probability, adding up over every
-    board that contains it (the "most confident" group).
+
+    Each turn it guesses the group with the highest probability
 
     use_feedback=True: after each guess, throw out the boards that disagree with the feedback
         correct   keep boards that contain the guess
         one away  keep boards with a group sharing exactly 3 words with the guess
         wrong     keep boards where no group shares 3 or more words with the guess
-    use_feedback=False: probabilities are fixed at the start. It still can't reuse words
-        from groups it already got right (the game removes them), and never repeats a guess.
+    use_feedback=False:  It still can't reuse words from groups it already got right, and never repeats a guess.
     """
 
     def __init__(self, scores, temperature=0.05, use_feedback=True, totals=None):
@@ -183,7 +181,7 @@ class BoardPlayer:
         return len(self.solved) == 4 or self.mistakes >= 4
 
     def top_guesses(self, n=1):
-        """the n most confident groups still allowed, as (group, probability) pairs"""
+        """the n most confident groups"""
         out = []
         for k in np.argsort(-self.marginal):
             if k not in self.guessed and MASKS[k] & self.used == 0:
