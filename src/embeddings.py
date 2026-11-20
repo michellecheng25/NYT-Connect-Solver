@@ -31,7 +31,8 @@ class GloVe(Embedding):
     def vec(self, word):
         self.total += 1
         text = word.lower().replace("-", " ").strip()
-        return self._average(text.split())  # "ice cream" -> average of ice, cream
+        # "ice cream" -> average of ice, cream
+        return self._average(text.split())
 
 
 class Numberbatch(Embedding):

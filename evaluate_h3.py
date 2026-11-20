@@ -41,7 +41,8 @@ def sweep(puzzles, wv):
     rs = {(t, pl): [] for t in TEMPERATURES for pl in ["static", "feedback"]}
     for p in puzzles:
         scores = plain_similarity(p["words"], wv)
-        totals = board_totals(scores)  # the slow part; it doesn't depend on the temperature
+        # the slow part; it doesn't depend on the temperature
+        totals = board_totals(scores)
         for t, pl in rs:
             rs[(t, pl)].append(run(scores, p["groups"], pl, t, totals))
     print(f"temperature sweep on {len(puzzles)} train puzzles (mean groups found / won)")
@@ -72,7 +73,8 @@ def main():
     results = {s: [] for s, _ in PLAYERS}
     for p in puzzles:
         scores = plain_similarity(p["words"], wv)
-        totals = board_totals(scores)  # shared by the static and feedback players
+        # shared by the static and feedback players
+        totals = board_totals(scores)
         for s, _ in PLAYERS:
             results[s].append(run(scores, p["groups"], s, args.temperature, totals))
 
