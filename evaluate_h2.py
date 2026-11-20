@@ -22,7 +22,8 @@ from src.solvers import whole_board, greedy_board, all_partitions, board_totals,
 COLORS = ["yellow", "green", "blue", "purple"]
 METRICS = ["groups_found", "solved", "words_correct"]
 SOLVERS = [("random", "random board"), ("greedy", "greedy"), ("whole", "whole-board")]
-B = 10000  # bootstrap resamples
+# bootstrap resamples
+B = 10000
 rng = np.random.default_rng(0)
 
 
@@ -95,7 +96,8 @@ def main():
     ranks = []
     for p in puzzles:
         scores = plain_similarity(p["words"], wv)
-        totals = board_totals(scores)  # shared by whole_board and true_board_rank
+        # shared by whole_board and true_board_rank
+        totals = board_totals(scores)
         results["random"].append(grade(random_board(), p["groups"]))
         results["greedy"].append(grade(greedy_board(scores), p["groups"]))
         results["whole"].append(grade(whole_board(scores, totals), p["groups"]))

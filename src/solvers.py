@@ -86,10 +86,13 @@ class GreedyPlayer:
         # groups still possible to guess, best score first
         self.alive = [frozenset(COMBINATIONS[k]) for k in np.argsort(-scores)]
         self.use_one_away = use_one_away
-        self.solved = []         # groups we got right
+        # groups we got right
+        self.solved = []
         self.mistakes = 0
-        self.near_miss = None    # last "one away" guess
-        self.history = []        # (guess, feedback) for each turn
+        # last "one away" guess
+        self.near_miss = None
+        # (guess, feedback) for each turn
+        self.history = []
 
     def done(self):
         return len(self.solved) == 4 or self.mistakes >= 4
@@ -106,7 +109,8 @@ class GreedyPlayer:
 
     def give_feedback(self, guess, feedback):
         self.history.append((guess, feedback))
-        self.alive.remove(guess)                      # never guess it again
+        # never guess it again
+        self.alive.remove(guess)
         if feedback == "correct":
             self.solved.append(guess)
             # its words are off the board: drop every group that touches them
@@ -162,11 +166,15 @@ class BoardPlayer:
         self.logp = totals / temperature
         self.use_feedback = use_feedback
         self.marginal = self._marginals()
-        self.solved = []         # groups we got right
-        self.used = 0            # mask of words in solved groups
-        self.guessed = set()     # group indices already tried
+        # groups we got right
+        self.solved = []
+        # mask of words in solved groups
+        self.used = 0
+        # group indices already tried
+        self.guessed = set()
         self.mistakes = 0
-        self.history = []        # (guess, feedback) for each turn
+        # (guess, feedback) for each turn
+        self.history = []
 
     def _marginals(self):
         """probability of each of the 1,820 groups = sum over the boards that contain it"""
