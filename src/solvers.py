@@ -156,9 +156,19 @@ class BoardPlayer:
         one away  keep boards with a group sharing exactly 3 words with the guess
         wrong     keep boards where no group shares 3 or more words with the guess
     use_feedback=False:  It still can't reuse words from groups it already got right, and never repeats a guess.
+
+    order: how the next guess is picked (only "confident" works without feedback)
+        confident         the group with the highest probability, added up over all boards
+        top_board         the highest-scoring group in the most likely board that's left
+        top_board_random  a random unsolved group from the most likely board that's left
     """
 
-    def __init__(self, scores, temperature=0.05, use_feedback=True, totals=None):
+    def __init__(self, scores, temperature=0.05, use_feedback=True, totals=None, order="confident", seed=0):
+        if order != "confident" and not use_feedback:
+            raise ValueError("the top_board orders need use_feedback=True")
+        self.scores = np.asarray(scores)
+        self.order = order
+        self.rng = np.random.default_rng(seed)
         self.boards = all_partitions()
         # totals can be passed in when the caller already computed it (it's the slow part)
         if totals is None:
@@ -199,7 +209,18 @@ class BoardPlayer:
         return out
 
     def next_guess(self):
-        return self.top_guesses(1)[0][0]
+        if self.order == "confident":
+            return self.top_guesses(1)[0][0]
+
+        # the most likely board that's left, minus the groups already solved
+        # (with feedback, every board left contains the solved groups and none of the wrong guesses)
+        best = self.boards[np.argmax(self.logp)]
+        left = [k for k in best if MASKS[k] & self.used == 0]
+        if self.order == "top_board":
+            k = max(left, key=lambda k: self.scores[k])
+        else:
+            k = self.rng.choice(left)
+        return frozenset(COMBINATIONS[k])
 
     def give_feedback(self, guess, feedback):
         self.history.append((guess, feedback))
@@ -220,8 +241,8 @@ class BoardPlayer:
 
 
 
-def play_boards(scores, truth, temperature=0.05, use_feedback=True, totals=None):
-    player = BoardPlayer(scores, temperature, use_feedback, totals)
+def play_boards(scores, truth, temperature=0.05, use_feedback=True, totals=None, order="confident", seed=0):
+    player = BoardPlayer(scores, temperature, use_feedback, totals, order, seed)
     while not player.done():
         guess = player.next_guess()
         player.give_feedback(guess, get_feedback(guess, truth))
